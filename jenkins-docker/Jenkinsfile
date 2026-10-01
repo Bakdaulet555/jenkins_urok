@@ -87,9 +87,8 @@ pipeline {
                 unstash 'docker-input'
 
                 script {
-                    if (!(params.IMAGE_REPOSITORY ==~
-                        /[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*/)) {
-                        error('Set IMAGE_REPOSITORY to namespace/repository')
+                    if (!params.IMAGE_REPOSITORY?.trim()) {
+                         error('Set IMAGE_REPOSITORY')
                     }
 
                     def image = docker.build(
