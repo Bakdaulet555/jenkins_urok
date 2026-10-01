@@ -1,0 +1,42 @@
+def runSbt(String args) {
+    if (isUnix()) { sh "sbt -batch ${args}" }
+    else { bat "call sbt -batch ${args}" }
+}
+pipeline {
+    agent none
+    options { skipDefaultCheckout(true); disableConcurrentBuilds(); timestamps() }
+    parameters {
+        string(name: 'REPO_URL', defaultValue: '', description: 'Git repository URL')
+        string(name: 'GIT_BRANCH', defaultValue: 'main', description: 'Branch')
+    }
+    stages {
+        stage('Matrix Testing') {
+            matrix {
+                axes {
+                    axis { name 'JAVA_VERSION'; values 'JDK11', 'JDK17', 'JDK21' }
+                    axis { name 'PROFILE'; values 'Standard', 'Cluster' }
+                }
+                agent any
+                tools { jdk "${JAVA_VERSION}" }
+                stages {
+                    stage('Checkout') {
+                        steps {
+                            script { if (!params.REPO_URL.trim()) { error('Set REPO_URL') } }
+                            git branch: params.GIT_BRANCH, url: params.REPO_URL
+                        }
+                    }
+                    stage('Build & Test') {
+                        steps {
+                            echo "Java=${JAVA_VERSION}, profile=${PROFILE}"
+                            script {
+                                if (isUnix()) { sh 'java -version' } else { bat 'java -version' }
+                                runSbt("-Diot.profile=${PROFILE} -Dakka.test.timefactor=2 clean test")
+                            }
+                        }
+                        post { always { junit '**/target/test-reports/*.xml' } }
+                    }
+                }
+            }
+        }
+    }
+}

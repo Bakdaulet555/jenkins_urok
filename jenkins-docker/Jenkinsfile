@@ -1,35 +1,64 @@
+def runSbt(String args) {
+    if (isUnix()) { sh "sbt -batch ${args}" }
+    else { bat "call sbt -batch ${args}" }
+}
 pipeline {
     agent any
-
-    stages {
-
-        stage('Checkout') {
-            steps {
-                echo 'Checkout completed'
-            }
-        }
-
-        stage('Build') {
-            steps {
-                echo 'Building project...'
-            }
-        }
-
-        stage('Test') {
-            steps {
-                echo 'Testing project...'
-            }
-        }
-
+    tools { jdk 'JDK17' }
+    options {
+        skipDefaultCheckout(true)
+        disableConcurrentBuilds()
+        skipStagesAfterUnstable()
+        timestamps()
     }
-
-    post {
-        success {
-            echo 'BUILD SUCCESS'
+    parameters {
+        string(name: 'IMAGE_REPOSITORY', defaultValue: '', description: 'Docker Hub namespace/akka-iot-service')
+        string(name: 'NOTIFY_TO', defaultValue: '', description: 'Team email')
+    }
+    stages {
+        stage('Checkout') { steps { checkout scm } }
+        stage('Compile') { steps { script { runSbt('clean compile') } } }
+        stage('Static Analysis') { steps { script { runSbt('scalastyle') } } }
+        stage('Unit Tests') {
+            steps { script { runSbt('test') } }
+            post { always { junit '**/target/test-reports/*.xml' } }
         }
-
+        stage('Package') {
+            when { branch 'main' }
+            steps {
+                script { runSbt('assembly') }
+                stash name: 'docker-input', includes: 'Dockerfile,.dockerignore,target/scala-2.13/akka-iot-service.jar'
+            }
+        }
+        stage('Package & Push Docker Image') {
+            when {
+                beforeAgent true
+                allOf { branch 'main'; expression { currentBuild.currentResult == 'SUCCESS' } }
+            }
+            agent { label 'docker-linux' }
+            steps {
+                unstash 'docker-input'
+                script {
+                    if (!(params.IMAGE_REPOSITORY ==~ /[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*/)) {
+                        error('Set IMAGE_REPOSITORY to namespace/repository')
+                    }
+                    def image = docker.build("${params.IMAGE_REPOSITORY}:${env.BUILD_NUMBER}")
+                    docker.withRegistry('https://index.docker.io/v1/', 'dockerhub-credentials-id') {
+                        image.push()
+                        image.push('latest')
+                    }
+                }
+            }
+        }
+    }
+    post {
         failure {
-            echo 'BUILD FAILED'
+            script {
+                if (params.NOTIFY_TO?.trim()) {
+                    mail to: params.NOTIFY_TO, subject: "FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                         body: "Build failed. Console: ${env.BUILD_URL}console"
+                } else { echo 'Build FAILED. NOTIFY_TO is not configured.' }
+            }
         }
     }
 }

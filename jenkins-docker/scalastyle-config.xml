@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scalastyle>
+  <name>IoT seminar checks</name>
+  <check level="error" class="org.scalastyle.file.FileTabChecker" enabled="true"/>
+  <check level="error" class="org.scalastyle.file.WhitespaceEndOfLineChecker" enabled="true"/>
+</scalastyle>

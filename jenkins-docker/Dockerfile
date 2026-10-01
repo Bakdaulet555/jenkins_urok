@@ -1,10 +1,5 @@
-FROM eclipse-temurin:21-jre
-
-WORKDIR /jenkins
-
-COPY jenkins.war /jenkins/jenkins.war
-
-EXPOSE 8080
-EXPOSE 50000
-
-CMD ["java", "-jar", "/jenkins/jenkins.war"]
+FROM eclipse-temurin:17-jre
+WORKDIR /app
+COPY target/scala-2.13/akka-iot-service.jar /app/service.jar
+USER 10001:10001
+ENTRYPOINT ["java", "-jar", "/app/service.jar"]

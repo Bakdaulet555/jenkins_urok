@@ -1,0 +1,6 @@
+diff --git a/src/test/scala/iot/SensorActorSpec.scala b/src/test/scala/iot/SensorActorSpec.scala
+--- a/src/test/scala/iot/SensorActorSpec.scala
++++ b/src/test/scala/iot/SensorActorSpec.scala
+@@ -33,1 +33,1 @@
+-      expectMsg(Accepted(expected))
++      expectMsg(Accepted(99.0))

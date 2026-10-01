@@ -1,0 +1,41 @@
+def runSbt(String args) {
+    if (isUnix()) { sh "sbt -batch ${args}" }
+    else { bat "call sbt -batch ${args}" }
+}
+pipeline {
+    agent any
+    tools { jdk 'JDK17' }
+    options { skipDefaultCheckout(true); disableConcurrentBuilds(); timestamps() }
+    parameters {
+        string(name: 'REPO_URL', defaultValue: '', description: 'Git repository URL containing this project')
+        string(name: 'GIT_BRANCH', defaultValue: 'main', description: 'Branch to build')
+        string(name: 'NOTIFY_TO', defaultValue: '', description: 'Team email; configure SMTP before setting')
+        booleanParam(name: 'FAIL_TEST', defaultValue: false, description: 'Task 2: demonstrate a failed test')
+    }
+    stages {
+        stage('Checkout') {
+            steps {
+                script { if (!params.REPO_URL.trim()) { error('Set REPO_URL to your Git repository') } }
+                git branch: params.GIT_BRANCH, url: params.REPO_URL
+            }
+        }
+        stage('Compile') { steps { script { runSbt('clean compile') } } }
+        stage('Static Analysis') { steps { script { runSbt('scalastyle') } } }
+        stage('Unit Tests') {
+            steps {
+                script { runSbt(params.FAIL_TEST ? '-Ddemo.fail=true test' : 'test') }
+            }
+            post { always { junit '**/target/test-reports/*.xml' } }
+        }
+    }
+    post {
+        failure {
+            script {
+                if (params.NOTIFY_TO?.trim()) {
+                    mail to: params.NOTIFY_TO, subject: "FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                         body: "Build failed. Console: ${env.BUILD_URL}console"
+                } else { echo 'Build FAILED. NOTIFY_TO is not configured.' }
+            }
+        }
+    }
+}
