@@ -4,17 +4,7 @@ def runSbt(String args) {
 }
 pipeline {
     agent any
-    tools { jdk 'JDK17' }
-    options {
-        skipDefaultCheckout(true)
-        disableConcurrentBuilds()
-        skipStagesAfterUnstable()
-        timestamps()
-    }
-    parameters {
-        string(name: 'IMAGE_REPOSITORY', defaultValue: '', description: 'Docker Hub namespace/akka-iot-service')
-        string(name: 'NOTIFY_TO', defaultValue: '', description: 'Team email')
-    }
+    
     stages {
         stage('Checkout') { steps { checkout scm } }
         stage('Compile') { steps { script { runSbt('clean compile') } } }
